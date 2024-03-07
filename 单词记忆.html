@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>单词记忆工具</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+      text-align: center;
+    }
+    h1 {
+      color: #333;
+    }
+    .word-container {
+      margin-bottom: 20px;
+    }
+    #word {
+      font-size: 48px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    #translation {
+      font-size: 24px;
+      color: #666;
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    #congratulationsMessage {
+      display: none;
+      font-size: 24px;
+      font-weight: bold;
+      color: #4CAF50;
+      margin-top: 20px;
+    }
+    .page-container {
+      display: none;
+    }
+    .page-container h2 {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    .word-form, .csv-form {
+      margin-top: 20px;
+    }
+    .word-form input, .csv-form input {
+      margin: 5px;
+      padding: 5px;
+      font-size: 16px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    #clearCacheBtn {
+      background-color: #f44336;
+    }
+    #clearCacheBtn:hover {
+      background-color: #d32f2f;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>单词记忆工具</h1>
+    <div class="word-container">
+      <div id="word"></div>
+      <div id="translation"></div>
+      <button id="showTranslation">显示翻译</button>
+    </div>
+    <div class="score-buttons" id="scoreButtons">
+      <button data-score="0">完全不记得 (1)</button>
+      <button data-score="1">有点印象 (2)</button>
+      <button data-score="2">记得 (3)</button>
+    </div>
+    <div>
+      <button id="addWordBtn">添加单词</button>
+      <button id="viewWordListBtn">查看单词表</button>
+      <button id="clearCacheBtn">清除缓存</button>
+    </div>
+    <div id="congratulationsMessage">恭喜！所有单词均已记忆完成</div>
+  </div>
+
+  <div id="addWordContainer" class="page-container">
+    <h2>添加单词</h2>
+    <div class="word-form">
+      <h3>手动添加单词</h3>
+      <input type="text" id="wordInput" placeholder="请输入单词">
+      <input type="text" id="translationInput" placeholder="请输入翻译">
+      <button id="addWordManuallyBtn">添加</button>
+    </div>
+    <div class="csv-form">
+      <h3>从CSV文件导入单词</h3>
+      <input type="file" id="csvFileInput" accept=".csv">
+    </div>
+    <button id="returnToMemoryBtn">返回背诵</button>
+  </div>
+
+  <div id="wordListContainer" class="page-container">
+    <h2>单词表</h2>
+    <table id="wordTable">
+      <thead>
+        <tr>
+          <th>单词</th>
+          <th>翻译</th>
+        </tr>
+      </thead>
+      <tbody id="wordTableBody"></tbody>
+    </table>
+    <button id="returnToMemoryFromListBtn">返回背诵</button>
+  </div>
+
+  <script>
+    let wordList = [];
+    let currentIndex = 0;
+
+    function showWord() {
+      const wordElement = document.getElementById('word');
+      const translationElement = document.getElementById('translation');
+
+      if (wordList.length > 0 && !isAllWordsMemorized()) {
+        wordElement.textContent = wordList[currentIndex].word;
+        translationElement.textContent = '';
+      } else {
+        wordElement.textContent = '';
+        translationElement.textContent = '';
+      }
+    }
+
+    function showTranslation() {
+      const translationElement = document.getElementById('translation');
+      translationElement.textContent = wordList[currentIndex].translation;
+    }
+
+    function nextWord() {
+      if (wordList.length > 0 && !isAllWordsMemorized()) {
+        currentIndex = (currentIndex + 1) % wordList.length;
+        while (wordList[currentIndex].memoryScore >= 1) {
+          currentIndex = (currentIndex + 1) % wordList.length;
+        }
+        showWord();
+      } else {
+        checkAllWordsMemorized();
+      }
+    }
+
+    function updateMemoryScore(score) {
+      if (score === 0) {
+        wordList[currentIndex].memoryScore = 0;
+      } else if (score === 1) {
+        wordList[currentIndex].memoryScore = Math.max(wordList[currentIndex].memoryScore - 0.3, 0);
+      } else if (score === 2) {
+        wordList[currentIndex].memoryScore = Math.min(wordList[currentIndex].memoryScore + 0.5, 1);
+      }
+
+      if (wordList[currentIndex].memoryScore < 1) {
+        nextWord();
+      } else {
+        currentIndex = (currentIndex + 1) % wordList.length;
+        if (!isAllWordsMemorized()) {
+          showWord();
+        } else {
+          checkAllWordsMemorized();
+        }
+      }
+
+      saveWordList();
+    }
+
+    function addNewWord() {
+      const wordInput = document.getElementById('wordInput');
+      const translationInput = document.getElementById('translationInput');
+      const word = wordInput.value.trim();
+      const translation = translationInput.value.trim();
+
+      if (word !== '' && translation !== '') {
+        wordList.push({ word, translation, memoryScore: 0 });
+        wordInput.value = '';
+        translationInput.value = '';
+        saveWordList();
+        showWord();
+        alert('单词已添加!');
+      }
+    }
+
+    function saveWordList() {
+      localStorage.setItem('wordList', JSON.stringify(wordList));
+    }
+
+    function loadWordList() {
+      const savedWordList = localStorage.getItem('wordList');
+      if (savedWordList) {
+        wordList = JSON.parse(savedWordList);
+      }
+    }
+
+    function isAllWordsMemorized() {
+      return wordList.every(word => word.memoryScore >= 1);
+    }
+
+    function checkAllWordsMemorized() {
+      if (isAllWordsMemorized()) {
+        showCongratulationsMessage();
+        hideWordContainer();
+      } else {
+        hideCongratulationsMessage();
+        showWordContainer();
+      }
+    }
+
+    function showCongratulationsMessage() {
+      const congratulationsMessage = document.getElementById('congratulationsMessage');
+      congratulationsMessage.style.display = 'block';
+    }
+
+    function hideCongratulationsMessage() {
+      const congratulationsMessage = document.getElementById('congratulationsMessage');
+      congratulationsMessage.style.display = 'none';
+    }
+
+    function hideWordContainer() {
+      const wordContainer = document.querySelector('.word-container');
+      wordContainer.style.display = 'none';
+    }
+
+    function showWordContainer() {
+      const wordContainer = document.querySelector('.word-container');
+      wordContainer.style.display = 'block';
+    }
+
+    function loadWordsFromCSV(event) {
+      const file = event.target.files[0];
+      const reader = new FileReader();
+
+      reader.onload = function (e) {
+        const contents = e.target.result;
+        const lines = contents.split('\n');
+
+        wordList = lines.filter(line => line.trim() !== '').map(line => {
+          const [word, translation] = line.split(',');
+          return { word: word.trim(), translation: translation.trim(), memoryScore: 0 };
+        });
+
+        saveWordList();
+        showWord();
+        hideCongratulationsMessage();
+        showWordContainer();
+      };
+
+      reader.readAsText(file);
+    }
+
+    function viewWordList() {
+      const wordTableBody = document.getElementById('wordTableBody');
+      wordTableBody.innerHTML = '';
+
+      wordList.forEach(word => {
+        const row = document.createElement('tr');
+        const wordCell = document.createElement('td');
+        const translationCell = document.createElement('td');
+
+        wordCell.textContent = word.word;
+        translationCell.textContent = word.translation;
+
+        row.appendChild(wordCell);
+        row.appendChild(translationCell);
+        wordTableBody.appendChild(row);
+      });
+
+      document.querySelector('.container').style.display = 'none';
+      document.getElementById('wordListContainer').style.display = 'block';
+    }
+
+    function showAddWordPage() {
+      document.querySelector('.container').style.display = 'none';
+      document.getElementById('addWordContainer').style.display = 'block';
+    }
+
+    function returnToMemoryFromAddWord() {
+      document.getElementById('addWordContainer').style.display = 'none';
+      document.querySelector('.container').style.display = 'block';
+    }
+
+    function returnToMemoryFromList() {
+      document.getElementById('wordListContainer').style.display = 'none';
+      document.querySelector('.container').style.display = 'block';
+    }
+
+    function clearCache() {
+      localStorage.removeItem('wordList');
+      wordList = [];
+      currentIndex = 0;
+      showWord();
+      hideCongratulationsMessage();
+      showWordContainer();
+      document.getElementById('csvFileInput').value = '';
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        showTranslation();
+      } else if (event.key === '1') {
+        updateMemoryScore(0);
+      } else if (event.key === '2') {
+        updateMemoryScore(1);
+      } else if (event.key === '3') {
+        updateMemoryScore(2);
+      }
+    }
+
+    function init() {
+      loadWordList();
+      showWord();
+      document.getElementById('showTranslation').addEventListener('click', showTranslation);
+      document.getElementById('scoreButtons').addEventListener('click', (event) => {
+        if (event.target.tagName === 'BUTTON') {
+          const score = parseInt(event.target.dataset.score);
+          updateMemoryScore(score);
+        }
+      });
+      document.getElementById('addWordBtn').addEventListener('click', showAddWordPage);
+      document.getElementById('addWordManuallyBtn').addEventListener('click', addNewWord);
+      document.getElementById('csvFileInput').addEventListener('change', loadWordsFromCSV);
+      document.getElementById('viewWordListBtn').addEventListener('click', viewWordList);
+      document.getElementById('returnToMemoryBtn').addEventListener('click', returnToMemoryFromAddWord);
+      document.getElementById('returnToMemoryFromListBtn').addEventListener('click', returnToMemoryFromList);
+      document.getElementById('clearCacheBtn').addEventListener('click', clearCache);
+      document.addEventListener('keydown', handleKeyPress);
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
